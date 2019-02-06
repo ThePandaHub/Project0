@@ -1,0 +1,81 @@
+/////////////////////////////////////////////////
+//Created on: 1/31/19
+//Author: Oscar
+//Description: 
+//Check if an account is overdrawn and change the status of the account accordingly.
+//Create a new transaction relating to the account.
+//Update the account based on all related transactions to show current balance.
+////////////////////////////////////////////////////////////////////////////////////
+public class Project0Object {
+    
+    ////////////////////////////////////////////////////
+    //Checks through customerBankAccount list and checks if there's a negative value in the account
+    //amount, if there's a negative then return true for overdraft field.
+    //Remain unchecked otherwise(false)
+    ///////////////////////////////////////////////////////////////
+    public static void AccountOverdrawn(){
+        List<CustomerBankAccount__c> cust = new List<CustomerBankAccount__c>();
+        for(CustomerBankAccount__c c: [SELECT amount__c, Overdrafted__c FROM CustomerBankAccount__c])
+            if(c.amount__c<0){
+                c.Overdrafted__c = true;
+            	cust.add(c);
+            }
+        	else{
+            	c.Overdrafted__c = false;
+                cust.add(c);
+        	}
+    	update cust;
+    }
+    
+    /////////////////////////////////////////////////////////
+    //This method creates a tracnsaction based on the parameters given to the method
+    //Using the inputName, input amount of action (deposit/withdrawal) a new transaction will be made
+    //The method will then call the other methods to process the actions
+    //The amount in the accounts will change accordingly.
+    /////////////////////////////////////////////////////////////
+    public static void AccountTransaction(string inputName, decimal inputamount, String action){
+        CustomerBankAccount__c acc = [SELECT id, accountowner__c 
+                                      FROM CustomerBankAccount__c 
+                                      WHERE accountowner__c = :inputName];
+        Transaction__c trans = new Transaction__c(CustomerTransaction__c = acc.Id, 
+                                                  amount__c = inputamount, 
+                                                  action__c = action, 
+                                                  processed__c = false);
+        insert trans;
+        ActiveTransaction();
+    }
+    ///////////////////////////////////////////////////////////
+    //Process through all transactions to verify if it's been processed previously or not.
+    //If the transaction has been processed, it is skipped. If the record hasn't been processed yet
+    //then run through the customer list to find the proper id to id link between customer account and
+    //transaction id. Once both have been identified, then the next step is to check the actions in the transaction
+    //either withdrawal or deposit, if it's withdrawal then the account will have the amount taken away from their account
+    //if it's a deposit, the value is stored into their account amount. The final step is to update both cust and trans
+    //and then the method accountoverdrawn is then called to verify the account of up to date.
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////
+    public static void ActiveTransaction(){
+        for(Transaction__c t: [SELECT CustomerTransaction__c, amount__c, action__c,processed__c FROM Transaction__c]){
+            if(!t.processed__c){
+                for(CustomerBankAccount__c c: [SELECT amount__c FROM CustomerBankAccount__c]){
+                    if(t.CustomerTransaction__c==c.Id){
+                        if(t.action__c=='withdrawal'){
+                        	c.amount__c-=t.amount__c;
+                            t.Processed__c=true;
+                            update t;
+                			update c;
+                        }
+                        else{
+                        	c.amount__c+=t.amount__c;
+                        	t.processed__c=true;
+                            update t;
+                            update c;
+                        }
+                    }
+                    
+              	}
+            	
+            }
+        }
+        AccountOverdrawn();
+    }
+}
